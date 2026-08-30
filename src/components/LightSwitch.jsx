@@ -11,7 +11,7 @@ export default function LightSwitch({
       <div>
         <div style={styles.controlName}>{name}</div>
         <div style={styles.controlSub}>
-          {!isLoaded ? "Syncing..." : isOn ? "Active" : "Turned off"}
+          {!isLoaded ? "Syncing..." : isOn ? "ON" : "OFF"}
         </div>
       </div>
 
