@@ -4,17 +4,24 @@ export default function PowerPointRelay({
   isOn,
   isLoaded = true,
   isConnected,
+  isPending = false,
   onTurnOn,
   onTurnOff,
 }) {
-  const canControl = isLoaded && isConnected;
+  const canControl = isLoaded && isConnected && !isPending;
 
   return (
     <div style={styles.controlRow}>
       <div>
         <div style={styles.controlName}>{name}</div>
         <div style={styles.controlSub}>
-          {!isLoaded ? "Syncing..." : isOn ? "Relay ON" : "Relay OFF"}
+          {!isLoaded
+            ? "Syncing..."
+            : isPending
+              ? "Updating..."
+              : isOn
+                ? "Relay ON"
+                : "Relay OFF"}
         </div>
       </div>
 
@@ -28,9 +35,10 @@ export default function PowerPointRelay({
             ...styles.offButton,
             opacity: !canControl || !isOn ? 0.45 : 1,
             cursor: !canControl || !isOn ? "not-allowed" : "pointer",
+            backgroundColor: isPending ? "#3a3a3c" : "#df250c",
           }}
         >
-          OFF
+          {isPending ? "WAIT" : "OFF"}
         </button>
 
         <button
@@ -42,9 +50,10 @@ export default function PowerPointRelay({
             ...styles.onButton,
             opacity: !canControl || isOn ? 0.45 : 1,
             cursor: !canControl || isOn ? "not-allowed" : "pointer",
+            backgroundColor: isPending ? "#3a3a3c" : "#34c759",
           }}
         >
-          ON
+          {isPending ? "WAIT" : "ON"}
         </button>
       </div>
     </div>

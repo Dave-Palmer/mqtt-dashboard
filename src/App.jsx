@@ -1,5 +1,5 @@
 // src/App.jsx
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import mqtt from "mqtt";
 import SensorCard from "./components/SensorCard";
 import LightSwitch from "./components/LightSwitch";
@@ -17,6 +17,7 @@ export default function App() {
 
   // Track which sensor modal is actively open
   const [selectedHistorySensor, setSelectedHistorySensor] = useState(null);
+  const pendingStateTimeouts = useRef({});
 
   const [sensors, setSensors] = useState({
     "house/temperature/outdoor": {
@@ -45,22 +46,46 @@ export default function App() {
     "house/relay/entrylight/state": {
       name: "Entry Light",
       isOn: false,
-      isLoaded: false, // Only loaded if the outdoor Pico is online
+      isLoaded: false,
       setTopic: "house/relay/entrylight/set",
+      pendingState: null,
+      pico: "house",
+      controlType: "toggle",
     },
-    "powerpoint/relay/state": {
+    "garage/relay/spalight/state": {
+      name: "SPA Light",
+      isOn: false,
+      isLoaded: false,
+      setTopic: "garage/relay/spalight/set",
+      pendingState: null,
+      pico: "garage",
+      controlType: "toggle",
+    },
+    "garage/relay/garagelight/state": {
+      name: "Garage Light",
+      isOn: false,
+      isLoaded: false,
+      setTopic: "garage/relay/garagelight/set",
+      pendingState: null,
+      pico: "garage",
+      controlType: "toggle",
+    },
+    "garage/relay/powerpoint/state": {
       name: "Power Point Relay",
       isOn: false,
-      isLoaded: false, // Only loaded if the garage Pico is online
-      setTopic: "powerpoint/relay/set",
+      isLoaded: false,
+      setTopic: "garage/relay/powerpoint/set",
+      pendingState: null,
+      pico: "garage",
+      controlType: "relay",
     },
   });
 
   const [momentarySwitches, setMomentarySwitches] = useState({
     "garage/relay/garagedoor/state": {
       name: "Garage Door",
-      setTopic: "garage/relay/garagedoor/trigger",
-      payload: "PULSE",
+      setTopic: "garage/relay/garagedoor/set",
+      payload: "ON",
     },
     // 💡 You can add an automatic gate or deadbolt trigger here later!
   });
@@ -110,11 +135,18 @@ export default function App() {
         }));
       }
       if (switches[topic]) {
+        const timer = pendingStateTimeouts.current[topic];
+        if (timer) {
+          clearTimeout(timer);
+          delete pendingStateTimeouts.current[topic];
+        }
+
         setSwitches((prev) => ({
           ...prev,
           [topic]: {
             ...prev[topic],
             isOn: payload.toUpperCase() === "ON",
+            pendingState: null,
           },
         }));
       }
@@ -125,35 +157,60 @@ export default function App() {
     };
   }, []);
 
-  const handleToggle = (statusTopic) => {
+  const scheduleSwitchStateUpdate = (statusTopic, nextState) => {
     if (!client || !isConnected) return;
+
     const targetSwitch = switches[statusTopic];
-    const nextState = targetSwitch.isOn ? "OFF" : "ON";
-    client.publish(targetSwitch.setTopic, nextState, { qos: 1, retain: true });
+    if (!targetSwitch) return;
+
+    const previousState = targetSwitch.isOn;
+    const payload = nextState ? "ON" : "OFF";
+
+    const existingTimer = pendingStateTimeouts.current[statusTopic];
+    if (existingTimer) {
+      clearTimeout(existingTimer);
+    }
+
+    const timer = setTimeout(() => {
+      setSwitches((prev) => ({
+        ...prev,
+        [statusTopic]: {
+          ...prev[statusTopic],
+          isOn: previousState,
+          pendingState: null,
+        },
+      }));
+      delete pendingStateTimeouts.current[statusTopic];
+    }, 2000);
+
+    pendingStateTimeouts.current[statusTopic] = timer;
+
+    client.publish(targetSwitch.setTopic, payload, { qos: 1, retain: true });
     setSwitches((prev) => ({
       ...prev,
-      [statusTopic]: { ...prev[statusTopic], isOn: !targetSwitch.isOn },
+      [statusTopic]: {
+        ...prev[statusTopic],
+        pendingState: payload,
+      },
     }));
+  };
+
+  const handleToggle = (statusTopic) => {
+    const targetSwitch = switches[statusTopic];
+    if (!targetSwitch || targetSwitch.pendingState) return;
+    scheduleSwitchStateUpdate(statusTopic, !targetSwitch.isOn);
   };
 
   const handleRelayOn = (statusTopic) => {
-    if (!client || !isConnected) return;
     const targetSwitch = switches[statusTopic];
-    client.publish(targetSwitch.setTopic, "ON", { qos: 1, retain: true });
-    setSwitches((prev) => ({
-      ...prev,
-      [statusTopic]: { ...prev[statusTopic], isOn: true },
-    }));
+    if (!targetSwitch || targetSwitch.pendingState) return;
+    scheduleSwitchStateUpdate(statusTopic, true);
   };
 
   const handleRelayOff = (statusTopic) => {
-    if (!client || !isConnected) return;
     const targetSwitch = switches[statusTopic];
-    client.publish(targetSwitch.setTopic, "OFF", { qos: 1, retain: true });
-    setSwitches((prev) => ({
-      ...prev,
-      [statusTopic]: { ...prev[statusTopic], isOn: false },
-    }));
+    if (!targetSwitch || targetSwitch.pendingState) return;
+    scheduleSwitchStateUpdate(statusTopic, false);
   };
 
   const handleMomentaryTrigger = (configKey) => {
@@ -258,14 +315,18 @@ export default function App() {
         Controls
       </h2>
       {Object.entries(switches).map(([topic, switchItem]) => {
-        if (switchItem.name === "Power Point Relay") {
+        const picoStatus =
+          switchItem.pico === "garage" ? garagePicoStatus : housePicoStatus;
+
+        if (switchItem.controlType === "relay") {
           return (
             <PowerPointRelay
               key={topic}
               name={switchItem.name}
               isOn={switchItem.isOn}
-              isLoaded={garagePicoStatus} // Only loaded if the garage Pico is online
+              isLoaded={picoStatus}
               isConnected={isConnected}
+              isPending={Boolean(switchItem.pendingState)}
               onTurnOn={() => handleRelayOn(topic)}
               onTurnOff={() => handleRelayOff(topic)}
             />
@@ -277,8 +338,9 @@ export default function App() {
             key={topic}
             name={switchItem.name}
             isOn={switchItem.isOn}
-            isLoaded={housePicoStatus} // Only loaded if the house Pico is online
+            isLoaded={picoStatus}
             isConnected={isConnected}
+            isPending={Boolean(switchItem.pendingState)}
             onToggle={() => handleToggle(topic)}
           />
         );
@@ -294,6 +356,7 @@ export default function App() {
           key={key}
           name={item.name}
           isConnected={isConnected}
+          isLoaded={garagePicoStatus}
           onTrigger={() => handleMomentaryTrigger(key)}
         />
       ))}

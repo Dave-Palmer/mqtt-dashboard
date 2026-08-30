@@ -1,11 +1,16 @@
 // src/components/MomentarySwitch.jsx
 import { useState } from "react";
 
-export default function MomentarySwitch({ name, isConnected, onTrigger }) {
+export default function MomentarySwitch({
+  name,
+  isConnected,
+  isLoaded = true,
+  onTrigger,
+}) {
   const [isPressing, setIsPressing] = useState(false);
 
   const handlePress = async () => {
-    if (isPressing || !isConnected) return;
+    if (isPressing || !isConnected || !isLoaded) return;
 
     setIsPressing(true);
     onTrigger(); // Fires the MQTT message immediately
@@ -23,16 +28,16 @@ export default function MomentarySwitch({ name, isConnected, onTrigger }) {
 
       <button
         onClick={handlePress}
-        disabled={isPressing || !isConnected}
+        disabled={isPressing || !isConnected || !isLoaded}
         style={{
           ...styles.pulseButton,
           backgroundColor: isPressing ? "#1c1c1e" : "#0a84ff",
           borderColor: isPressing ? "#3a3a3c" : "transparent",
           transform: isPressing ? "scale(0.96)" : "scale(1)",
-          opacity: !isConnected ? 0.4 : 1,
+          opacity: !isConnected || !isLoaded ? 0.4 : 1,
         }}
       >
-        {isPressing ? "TRIGGERING..." : "PRESS"}
+        {!isLoaded ? "OFFLINE" : isPressing ? "TRIGGERING..." : "PRESS"}
       </button>
     </div>
   );

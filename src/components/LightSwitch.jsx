@@ -4,6 +4,7 @@ export default function LightSwitch({
   isOn,
   isLoaded,
   isConnected,
+  isPending = false,
   onToggle,
 }) {
   return (
@@ -11,22 +12,34 @@ export default function LightSwitch({
       <div>
         <div style={styles.controlName}>{name}</div>
         <div style={styles.controlSub}>
-          {!isLoaded ? "Syncing..." : isOn ? "ON" : "OFF"}
+          {!isLoaded
+            ? "Syncing..."
+            : isPending
+              ? "Updating..."
+              : isOn
+                ? "ON"
+                : "OFF"}
         </div>
       </div>
 
       <button
         onClick={onToggle}
-        disabled={!isLoaded || !isConnected}
+        disabled={!isLoaded || !isConnected || isPending}
         style={{
           ...styles.toggleButton,
-          backgroundColor: !isLoaded ? "#2c2c2e" : isOn ? "#34c759" : "#1c1c1e",
+          backgroundColor: !isLoaded
+            ? "#2c2c2e"
+            : isPending
+              ? "#3a3a3c"
+              : isOn
+                ? "#34c759"
+                : "#1c1c1e",
           opacity: !isLoaded ? 0.4 : 1,
-          cursor: !isLoaded ? "not-allowed" : "pointer",
+          cursor: !isLoaded || isPending ? "not-allowed" : "pointer",
           border: !isLoaded ? "none" : "1px solid #3a3a3c",
         }}
       >
-        {!isLoaded ? "..." : isOn ? "ON" : "OFF"}
+        {!isLoaded ? "..." : isPending ? "WAITING" : isOn ? "ON" : "OFF"}
       </button>
     </div>
   );
