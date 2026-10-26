@@ -9,7 +9,7 @@ function renderSvgGraph(history) {
 
   const points = history
     .map((d, i) => {
-      const x = (i / (history.length - 1)) * 320;
+      const x = history.length === 1 ? 160 : (i / (history.length - 1)) * 320;
       const y = 100 - ((d.val - minVal) / range) * 80;
       return `${x},${y}`;
     })
@@ -28,6 +28,14 @@ function renderSvgGraph(history) {
         strokeLinejoin="round"
         points={points}
       />
+      {history.length === 1 && (
+        <circle
+          cx="160"
+          cy={100 - ((history[0].val - minVal) / range) * 80}
+          r="4"
+          fill="#34c759"
+        />
+      )}
     </svg>
   );
 }
@@ -73,16 +81,46 @@ export default function HistoryTemperatureModal({ sensor, onClose }) {
               !Number.isNaN(row.timestamp.getTime()) &&
               row.timestamp.getTime() >= cutoff,
           )
-          .sort((a, b) => a.timestamp - b.timestamp)
-          .map((row) => ({
-            time: row.timestamp.toLocaleTimeString([], {
-              hour: "numeric",
-              minute: "2-digit",
-            }),
-            val: row.val,
-          }));
+          .sort((a, b) => a.timestamp - b.timestamp);
 
-        setHistory(records);
+        const hourlyReadings = new Map();
+        records.forEach(({ timestamp, val }) => {
+          const hourKey = [
+            timestamp.getFullYear(),
+            timestamp.getMonth(),
+            timestamp.getDate(),
+            timestamp.getHours(),
+          ].join("-");
+          const reading = hourlyReadings.get(hourKey);
+
+          if (reading) {
+            reading.total += val;
+            reading.count += 1;
+          } else {
+            hourlyReadings.set(hourKey, {
+              timestamp,
+              total: val,
+              count: 1,
+            });
+          }
+        });
+
+        const hourlyRecords = [...hourlyReadings.values()].map(
+          ({ timestamp, total, count }) => ({
+            timestamp,
+            val: total / count,
+          }),
+        );
+
+        const aggregatedRecords = hourlyRecords.map((row) => ({
+          time: row.timestamp.toLocaleTimeString([], {
+            hour: "numeric",
+            minute: "2-digit",
+          }),
+          val: row.val,
+        }));
+
+        setHistory(aggregatedRecords);
       } catch (requestError) {
         if (requestError.name !== "AbortError") {
           setError(
