@@ -97,8 +97,10 @@ export default function HistoryTemperatureModal({ sensor, onClose }) {
             reading.total += val;
             reading.count += 1;
           } else {
+            const hourTimestamp = new Date(timestamp);
+            hourTimestamp.setMinutes(0, 0, 0);
             hourlyReadings.set(hourKey, {
-              timestamp,
+              timestamp: hourTimestamp,
               total: val,
               count: 1,
             });
@@ -170,7 +172,7 @@ export default function HistoryTemperatureModal({ sensor, onClose }) {
               <div key={idx} style={modalStyles.listItem}>
                 <span style={{ color: "#aeaea2" }}>{item.time}</span>
                 <span style={{ fontWeight: "600" }}>
-                  {item.val}
+                  {item.val.toFixed(1)}
                   {sensor.unit}
                 </span>
               </div>
