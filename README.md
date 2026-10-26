@@ -1,5 +1,20 @@
 # React + Vite
 
+## Temperature history
+
+History is loaded from the Express API through the Vercel function at
+`/api/temp/:sensor`. The supported sensor names are `outside`, `inside`, and
+`garage`; the dashboard displays readings from the previous 24 hours.
+
+Configure these environment variables in the dashboard's Vercel project:
+
+- `TEMPERATURE_API_KEY`: the same key configured as `API_KEY` in the Express
+  API project. Keep this variable server-side; do not use a `VITE_` prefix.
+- `TEMPERATURE_API_URL`: optional API base URL. It defaults to
+  `https://pico-temp-api.vercel.app`.
+
+Redeploy the dashboard after setting or changing the variables.
+
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
 
 Currently, two official plugins are available:

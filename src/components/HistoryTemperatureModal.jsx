@@ -1,18 +1,8 @@
-import React from "react";
-
-// --- GENERATE 24HR DUMMY DATA FOR TEMPERATURE ---
-export const dummyTempHistory = Array.from({ length: 24 }, (_, i) => {
-  const hour = (new Date().getHours() - (23 - i) + 24) % 24;
-  const ampm = hour >= 12 ? "PM" : "AM";
-  const displayHour = hour % 12 === 0 ? 12 : hour % 12;
-  const baseTemp = 20 + Math.sin((i - 6) / 3) * 2.5 + Math.random() * 0.4;
-  return {
-    time: `${displayHour}:00 ${ampm}`,
-    val: parseFloat(baseTemp.toFixed(1)),
-  };
-});
+import { useEffect, useState } from "react";
 
 function renderSvgGraph(history) {
+  if (history.length === 0) return null;
+
   const minVal = Math.min(...history.map((d) => d.val)) - 1;
   const maxVal = Math.max(...history.map((d) => d.val)) + 1;
   const range = maxVal - minVal;
@@ -43,6 +33,73 @@ function renderSvgGraph(history) {
 }
 
 export default function HistoryTemperatureModal({ sensor, onClose }) {
+  const [history, setHistory] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    if (!sensor?.historySensor) return undefined;
+
+    const controller = new AbortController();
+
+    async function loadHistory() {
+      setIsLoading(true);
+      setError("");
+
+      try {
+        const response = await fetch(
+          `/api/temp/${encodeURIComponent(sensor.historySensor)}`,
+          { signal: controller.signal },
+        );
+
+        if (!response.ok) {
+          throw new Error(`History request failed (${response.status})`);
+        }
+
+        const rows = await response.json();
+        if (!Array.isArray(rows)) {
+          throw new Error("The history API returned an invalid response");
+        }
+
+        const cutoff = Date.now() - 24 * 60 * 60 * 1000;
+        const records = rows
+          .map((row) => ({
+            timestamp: new Date(row.timestamp),
+            val: Number(row.temperature),
+          }))
+          .filter(
+            (row) =>
+              Number.isFinite(row.val) &&
+              !Number.isNaN(row.timestamp.getTime()) &&
+              row.timestamp.getTime() >= cutoff,
+          )
+          .sort((a, b) => a.timestamp - b.timestamp)
+          .map((row) => ({
+            time: row.timestamp.toLocaleTimeString([], {
+              hour: "numeric",
+              minute: "2-digit",
+            }),
+            val: row.val,
+          }));
+
+        setHistory(records);
+      } catch (requestError) {
+        if (requestError.name !== "AbortError") {
+          setError(
+            requestError.message || "Unable to load temperature history",
+          );
+        }
+      } finally {
+        if (!controller.signal.aborted) {
+          setIsLoading(false);
+        }
+      }
+    }
+
+    loadHistory();
+    return () => controller.abort();
+  }, [sensor?.historySensor]);
+
   if (!sensor) return null;
 
   return (
@@ -55,10 +112,20 @@ export default function HistoryTemperatureModal({ sensor, onClose }) {
           </button>
         </div>
 
-        {renderSvgGraph(sensor.historyData)}
+        {isLoading ? (
+          <p style={modalStyles.message}>Loading temperature history…</p>
+        ) : error ? (
+          <p style={modalStyles.error}>{error}</p>
+        ) : history.length === 0 ? (
+          <p style={modalStyles.message}>
+            No temperature readings in the last 24 hours.
+          </p>
+        ) : (
+          renderSvgGraph(history)
+        )}
 
         <div style={modalStyles.listContainer}>
-          {sensor.historyData
+          {history
             .slice()
             .reverse()
             .map((item, idx) => (
@@ -108,6 +175,8 @@ const modalStyles = {
     marginBottom: "8px",
   },
   title: { fontSize: "18px", margin: 0, fontWeight: "600" },
+  message: { color: "#aeaea2", textAlign: "center", padding: "24px 0" },
+  error: { color: "#ff6b64", textAlign: "center", padding: "24px 0" },
   closeBtn: {
     border: "none",
     backgroundColor: "#2c2c2e",

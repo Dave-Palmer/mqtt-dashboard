@@ -5,9 +5,7 @@ import SensorCard from "./components/SensorCard";
 import LightSwitch from "./components/LightSwitch";
 import MomentarySwitch from "./components/MomentarySwitch";
 import PowerPointRelay from "./components/PowerPointRelay";
-import HistoryTemperatureModal, {
-  dummyTempHistory,
-} from "./components/HistoryTemperatureModal";
+import HistoryTemperatureModal from "./components/HistoryTemperatureModal";
 
 export default function App() {
   const [client, setClient] = useState(null);
@@ -21,24 +19,25 @@ export default function App() {
 
   const [sensors, setSensors] = useState({
     "house/temperature/outdoor": {
-      label: "Ouside Temp",
+      label: "Outside Temp",
       value: "--",
       unit: "°C",
       hasHistory: true,
-      historyData: dummyTempHistory,
+      historySensor: "outside",
     },
     "house/temperature/indoor": {
       label: "Living Room Temp",
       value: "--",
       unit: "°C",
       hasHistory: true,
-      historyData: dummyTempHistory,
+      historySensor: "inside",
     },
     "garage/temperature": {
       label: "Garage Temp",
       value: "--",
       unit: "°C",
-      hasHistory: false,
+      hasHistory: true,
+      historySensor: "garage",
     },
   });
 
